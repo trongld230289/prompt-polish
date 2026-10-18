@@ -1,0 +1,7 @@
+{
+  "name": "prompt-polish",
+  "version": "0.1.0",
+  "description": "Prompt Enhancer: rewrites your draft with haiku, naming fitting skills, questions to ask first, acceptance criteria and project context",
+  "author": { "name": "trongld230289" },
+  "types":"./types/index.d.ts"
+}
