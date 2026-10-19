@@ -160,23 +160,25 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
-          <Button key="enhance" label={isBusy ? 'Enhancing…' : 'Enhance'} hotkey="e" onPress={isBusy ? () => {} : onEnhance} />
-          <Text> </Text>
-          <Button key="send" label="Send" hotkey="s" onPress={() => sendDraft($)} />
-          <Text> </Text>
-          {state.kind === 'busy' && <Text dimColor>⋯ rewriting with haiku</Text>}
-          {state.kind === 'filled' && <Text color="green">✓ enhanced: edit it, then Enter or Send</Text>}
+          <Button key="enhance" plain hotkey="e" onPress={isBusy ? () => {} : onEnhance}>
+            <Text color="magenta" bold>{isBusy ? '♦ Enhancing…' : '♦ Enhance'}</Text>
+          </Button>
+          <Text dimColor>  ·  </Text>
+          <Button key="send" plain dimColor hotkey="s" onPress={() => sendDraft($)}>► Send</Button>
+          <Text>   </Text>
+          {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
+          {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then Enter or Send</Text>}
           {state.kind === 'error' && <Text color="red">✗ {state.message}</Text>}
-          {state.kind === 'error' && <Text> </Text>}
-          {state.kind === 'error' && <Button key="dismiss" label="Dismiss" hotkey="d" onPress={onDismiss} />}
+          {state.kind === 'error' && <Text dimColor>  ·  </Text>}
+          {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
         </Box>
         {state.kind === 'proposed' && (
           <Box flexDirection="column">
             <Text dimColor>{state.text}</Text>
             <Box>
-              <Button key="use" label="Use this" hotkey="u" onPress={onUse} />
-              <Text> </Text>
-              <Button key="dismiss" label="Dismiss" hotkey="d" onPress={onDismiss} />
+              <Button key="use" plain hotkey="u" onPress={onUse}><Text color="magenta" bold>Use this</Text></Button>
+              <Text dimColor>  ·  </Text>
+              <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>
             </Box>
           </Box>
         )}
