@@ -1,9 +1,10 @@
 // The Enhance label, glancedeck style: "En" in white, a cyan ramp rolling through "hance", the diamond breathing.
-// Idle, it plays three breaths then rests, once every 30 s; enhancing, it plays without rest. A click presses it.
+// Idle, it plays three breaths then rests, once every 30 s; enhancing, it plays without rest. Hovered, the word
+// is underlined; a click presses it.
 import type { ClientModule } from 'claude-code'
 
 type Props = { isBusy: boolean; text: string; ramp: string[] }
-type State = { ticks: number; isBusy: boolean }
+type State = { ticks: number; isBusy: boolean; isHover: boolean }
 
 const STEP_MS = 400
 // All in Consolas: one cell each, nothing borrowed from a fallback font.
@@ -14,7 +15,7 @@ const PERIOD = 30_000 / STEP_MS
 
 const Label: ClientModule<Props, State> = (props, surface) => {
   const { Text } = surface.elements
-  const ref = surface.state ?? { ticks: 0, isBusy: props.isBusy }
+  const ref = surface.state ?? { ticks: 0, isBusy: props.isBusy, isHover: false }
   // The clock below reads this, not the props it first saw.
   ref.isBusy = props.isBusy
   if (surface.state === undefined) {
@@ -26,6 +27,11 @@ const Label: ClientModule<Props, State> = (props, surface) => {
     })
     surface.onPointer(e => {
       if (e.type === 'up' && e.button === 'left') surface.post({ press: 'enhance' })
+      // Under the pointer the word is underlined, so it reads as something to click.
+      if (e.type === 'enter' || e.type === 'leave') {
+        ref.isHover = e.type === 'enter'
+        surface.setState(ref)
+      }
     })
   }
   const step = ref.ticks % PERIOD
@@ -39,11 +45,11 @@ const Label: ClientModule<Props, State> = (props, surface) => {
   return (
     <Text wrap="truncate">
       <Text color={lead}>{`${isMoving ? BREATH[tick % BREATH.length] : '♦'} `}</Text>
-      <Text bold color={props.text}>
+      <Text bold underline={ref.isHover} color={props.text}>
         En
       </Text>
       {[...word.slice(2)].map((ch, i) => (
-        <Text key={String(i)} bold color={hue(i)}>
+        <Text key={String(i)} bold underline={ref.isHover} color={hue(i)}>
           {ch}
         </Text>
       ))}

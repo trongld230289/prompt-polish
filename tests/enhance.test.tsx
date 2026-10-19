@@ -92,3 +92,15 @@ test('off the terminal the Enhance label is a plain Button, no Client', async ($
   expect(await ui.find({ type: 'Button', key: 'enhance' })).toBeDefined()
   await ui.unmount()
 })
+
+test('under the pointer the Enhance word is underlined', async ($) => {
+  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  // The label's Text holds one Text per run: the diamond, then "En".
+  const en = async () => (await ui.find({ type: 'Text', text: /Enhance/, in: 'enhance-label' }))?.children[1] as { props: { underline?: boolean } }
+  expect((await en())?.props.underline).toBeFalsy()
+  await ui.pointer({ type: 'enter', x: 2, y: 0 })
+  expect((await en())?.props.underline).toBe(true)
+  await ui.pointer({ type: 'leave', x: 2, y: 0 })
+  expect((await en())?.props.underline).toBeFalsy()
+  await ui.unmount()
+})
