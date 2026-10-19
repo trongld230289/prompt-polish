@@ -29,7 +29,7 @@ test('Enhance rewrites the draft with haiku and fills the prompt box', async ($,
     return { isFilled: true }
   })
 
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left' })
   await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left' })
 
@@ -44,7 +44,7 @@ test('a failed model call shows a clear message', async ($, on) => {
   on('prompt.read', () => ({ value: { text: 'fix the bug', cursor: 0 } }))
   on('model.complete', () => ({ value: { isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: USAGE } as const }))
 
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.post({ press: 'enhance' })
 
   expect((await ui.find({ type: 'Text', text: /failed/ }))?.text).toContain('529')
@@ -62,7 +62,7 @@ test('when the box cannot be filled, the band offers Use this', async ($, on) =>
     return { text: e.text }
   })
 
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.post({ press: 'enhance' })
 
   expect((await ui.find({ type: 'Text', text: /Write tests for X/ }))?.text).toContain('Write tests for X')
@@ -72,7 +72,7 @@ test('when the box cannot be filled, the band offers Use this', async ($, on) =>
 })
 
 test('the Enhance label plays three breaths, then rests until the 30 s period comes round', async ($) => {
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   expect(await ui.find({ type: 'Text', text: 'En', in: 'enhance-label' })).toBeDefined()
   await ui.advance(400)
   expect(await ui.find({ type: 'Text', text: '◊ ', in: 'enhance-label' })).toBeDefined()
@@ -87,14 +87,14 @@ test('the Enhance label plays three breaths, then rests until the 30 s period co
 })
 
 test('off the terminal the Enhance label is a plain Button, no Client', async ($) => {
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'desktop', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'desktop', ...BAND })
   expect(await ui.find({ type: 'Client' })).toBeUndefined()
   expect(await ui.find({ type: 'Button', key: 'enhance' })).toBeDefined()
   await ui.unmount()
 })
 
 test('under the pointer the Enhance word is underlined and says what a click does', async ($) => {
-  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   // The label's Text holds one Text per run: the diamond, then "En".
   const en = async () => (await ui.find({ type: 'Text', text: /Enhance/, in: 'enhance-label' }))?.children[1] as { props: { underline?: boolean } }
   expect((await en())?.props.underline).toBeFalsy()

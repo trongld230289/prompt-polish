@@ -7,6 +7,6 @@ export type Polish =
 
 declare module 'claude-code' {
   interface PluginState {
-    'prompt-polish': { polish: Polish }
+    'promptdeck': { polish: Polish }
   }
 }

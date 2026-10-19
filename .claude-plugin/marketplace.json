@@ -1,6 +1,6 @@
 {
-  "name": "prompt-polish",
-  "description": "prompt-polish: a Claude Code mod that enhances your prompt before you send it",
+  "name": "promptdeck",
+  "description": "promptdeck: a Claude Code mod that enhances your prompt before you send it",
   "owner": { "name": "trongld230289" },
-  "plugins": [{ "name": "prompt-polish", "source": "./" }]
+  "plugins": [{ "name": "promptdeck", "source": "./" }]
 }

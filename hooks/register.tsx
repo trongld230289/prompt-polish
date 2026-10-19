@@ -3,7 +3,7 @@ import type { EngineInterface, ModelCompleteResult, Register } from 'claude-code
 
 import type { Polish } from '../types'
 
-const polish = atom({ plugin: 'prompt-polish', key: 'polish' } as const, { kind: 'idle' } as Polish)
+const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
 
 const CONTEXT_FILES = ['CLAUDE.md', 'README.md', 'package.json']
 const FILE_CAP = 4000
@@ -38,7 +38,7 @@ async function listSkills($: EngineInterface): Promise<Skill[]> {
 
     return commands
       .filter(c => c.source === 'plugin' || c.source === 'user')
-      .filter(c => c.plugin !== 'prompt-polish')
+      .filter(c => c.plugin !== 'promptdeck')
       .slice(0, SKILL_CAP)
       .map(c => ({ name: c.name, description: c.description.slice(0, 160) }))
   } catch {
@@ -129,7 +129,7 @@ export const register: Register = on => {
     const draft = e.args.trim() !== '' ? e.args : (await $.prompt.read()).text
     void enhance($, draft)
 
-    return { text: 'prompt-polish: enhancing with haiku; the result lands in the prompt box.' }
+    return { text: 'promptdeck: enhancing with haiku; the result lands in the prompt box.' }
   })
 
   // A click on the animated label: it posts, this presses Enhance.

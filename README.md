@@ -1,4 +1,4 @@
-# prompt-polish
+# promptdeck
 
 A Claude Code mod that rewrites your draft prompt with haiku before you send it. The rewrite names the installed skills that fit the task, lists the decisions Claude should ask you about first, describes what "done" looks like, and adds project context from `CLAUDE.md`, `README.md` and `package.json`. It keeps the language you wrote in.
 
@@ -7,7 +7,7 @@ A Claude Code mod that rewrites your draft prompt with haiku before you send it.
 At the prompt of a Claude Code terminal session:
 
 ```
-/plugin install prompt-polish --marketplace trongld230289/prompt-polish
+/plugin install promptdeck --marketplace trongld230289/promptdeck
 ```
 
 Answer `y` to add the marketplace, then pick a scope.
@@ -15,10 +15,10 @@ Answer `y` to add the marketplace, then pick a scope.
 From a shell:
 
 ```sh
-claude plugin install prompt-polish --marketplace trongld230289/prompt-polish
+claude plugin install promptdeck --marketplace trongld230289/promptdeck
 ```
 
-In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `trongld230289/prompt-polish`, then Add plugin.
+In the desktop app, where `/plugin` does not run: click + next to the prompt box, then Plugins, Add marketplace with `trongld230289/promptdeck`, then Add plugin.
 
 ## Use
 
