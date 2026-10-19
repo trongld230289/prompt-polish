@@ -172,7 +172,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
-          {'Client' in els ? (
+          {/* Only the terminal: Claude Desktop's Client shell does not start for it, and says so in a band. */}
+          {e.surface === 'terminal' && 'Client' in els ? (
             <els.Client key="enhance-label" module="./label.tsx" props={{ isBusy, text: WHITE, ramp: RAMP }} />
           ) : (
             <Button key="enhance" plain onPress={isBusy ? () => {} : onEnhance}>

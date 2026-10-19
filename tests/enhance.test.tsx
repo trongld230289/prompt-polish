@@ -85,3 +85,10 @@ test('the Enhance label plays three breaths, then rests until the 30 s period co
   expect(await ui.find({ type: 'Text', text: '◊ ', in: 'enhance-label' })).toBeDefined()
   await ui.unmount()
 })
+
+test('off the terminal the Enhance label is a plain Button, no Client', async ($) => {
+  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'desktop', ...BAND })
+  expect(await ui.find({ type: 'Client' })).toBeUndefined()
+  expect(await ui.find({ type: 'Button', key: 'enhance' })).toBeDefined()
+  await ui.unmount()
+})
