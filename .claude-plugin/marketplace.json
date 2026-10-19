@@ -1,6 +1,6 @@
 {
   "name": "promptdeck",
-  "description": "promptdeck: a Claude Code mod that enhances your prompt before you send it",
+  "description": "promptdeck: a Claude Code mod with buttons above the prompt (Enhance, Keepwarm)",
   "owner": { "name": "trongld230289" },
   "plugins": [{ "name": "promptdeck", "source": "./" }]
 }

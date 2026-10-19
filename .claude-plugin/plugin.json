@@ -1,7 +1,7 @@
 {
   "name": "promptdeck",
-  "version": "0.1.4",
-  "description": "Prompt Enhancer: rewrites your draft with haiku, naming fitting skills, questions to ask first, acceptance criteria and project context",
+  "version": "0.2.0",
+  "description": "Buttons above the prompt: Enhance rewrites your draft with haiku; Keepwarm pings this session so its prompt cache stays warm while you are away",
   "author": { "name": "trongld230289" },
   "types":"./types/index.d.ts"
 }

@@ -1,9 +1,19 @@
 import { atom, read, update } from 'claude-code'
-import type { EngineInterface, ModelCompleteResult, Register } from 'claude-code'
+import type { EngineInterface, ModelCompleteResult, Register, Timer } from 'claude-code'
 
-import type { Polish } from '../types'
+import type { Polish, Warm } from '../types'
 
 const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
+const warm = atom({ plugin: 'promptdeck', key: 'warm' } as const, { kind: 'off' } as Warm)
+
+// The subscription prompt cache lives about an hour from its last use: a ping 50 minutes after the last turn reads
+// it (cheap) and so keeps it, where the first prompt after a cold cache writes the whole conversation again.
+const WARM_INTERVAL_MS = 50 * 60_000
+const WARM_DEFAULT = 6
+const WARM_MAX = 48
+// vi-voice knows this mark and stays silent for the ping and its answer.
+const PING ='[keepwarm] Cache keep-alive ping while I am away. Do nothing, use no tools, reply with just: ok'
+const WARM_COUNT_KEY = 'warmCount'
 
 const CONTEXT_FILES = ['CLAUDE.md', 'README.md', 'package.json']
 const FILE_CAP = 4000
@@ -11,6 +21,7 @@ const SKILL_CAP = 200
 // glancedeck's wordmark colours: white text, the cyan ramp that rolls through "deck".
 const WHITE = '#E6E8EE'
 const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
+const WARM = '#F2A65A'
 
 const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, into a clearer, more complete prompt. Output ONLY the rewritten prompt, nothing before or after it.
 
@@ -114,6 +125,89 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
   }
 }
 
+// ---------------------------------------------------------------- keepwarm
+
+// The module's own: a reload starts them over, and session.start sets them again from the warm atom.
+let pingTimer: Timer | null = null
+let minuteTimer: Timer | null = null
+
+function setWarm($: EngineInterface, next: Warm): Promise<Warm> {
+  return update($, warm, () => next)
+}
+
+/** How many pings the person asked for last time, on any session. */
+async function lastCount($: EngineInterface): Promise<number> {
+  let n = NaN
+  try {
+    n = Number(await $.store.get(WARM_COUNT_KEY))
+  } catch {
+    // no store here: the default
+  }
+
+  return Number.isInteger(n) && n >= 1 && n <= WARM_MAX ? n : WARM_DEFAULT
+}
+
+/** The ask's text as a ping count, or null when it is not a whole number from 1 to WARM_MAX. */
+function parseCount(text: string): number | null {
+  const n = Number(text.trim())
+  return Number.isInteger(n) && n >= 1 && n <= WARM_MAX ? n : null
+}
+
+function stopTimers() {
+  pingTimer?.cancel()
+  pingTimer = null
+  minuteTimer?.cancel()
+  minuteTimer = null
+}
+
+async function stopWarm($: EngineInterface, why?: string) {
+  stopTimers()
+  await setWarm($, { kind: 'off' })
+  if (why) $.ui.toast(`promptdeck: keepwarm off: ${why}.`)
+}
+
+/** Sets the ping timer for `nextAt`, and a minute tick so the band's countdown moves. */
+async function arm($: EngineInterface, w: Extract<Warm, { kind: 'on' }>) {
+  stopTimers()
+  const now = await $.clock.now()
+  pingTimer = $.clock.after(Math.max(1000, w.nextAt - now), () => void ping($))
+  minuteTimer = $.clock.every(60_000, () => void update($, warm, x => (x.kind === 'on' ? { ...x } : x)))
+}
+
+async function startWarm($: EngineInterface, total: number) {
+  await $.store.set(WARM_COUNT_KEY, total)
+  const w: Warm = { kind: 'on', total, sent: 0, nextAt: (await $.clock.now()) + WARM_INTERVAL_MS }
+  await setWarm($, w)
+  await arm($, w)
+}
+
+/** True when the 5-hour window is spent and has not reset: a ping would be refused anyway. */
+async function isOutOfUsage($: EngineInterface): Promise<boolean> {
+  const u = await $.session.usage().catch(() => null)
+  const w = u?.rateLimits.find(l => l.kind === 'five_hour')
+  if (!w || w.percentUsed < 100) return false
+  const resetsAt = w.resetsAt ? Date.parse(w.resetsAt) : NaN
+
+  return !Number.isFinite(resetsAt) || (await $.clock.now()) < resetsAt
+}
+
+async function ping($: EngineInterface) {
+  const w = await read($, warm)
+  if (w.kind !== 'on') return
+  if (await isOutOfUsage($)) {
+    await stopWarm($, 'the 5-hour usage limit is reached')
+    return
+  }
+  const sent = w.sent + 1
+  // The next ping is timed from this ping's turn end (turn.complete); until then, a fallback a full interval away.
+  const later: Warm = { ...w, sent, nextAt: (await $.clock.now()) + WARM_INTERVAL_MS }
+  await setWarm($, later)
+  if (sent >= w.total) stopTimers()
+  else await arm($, later)
+  // A plugin's prompt waits for the session to be idle; not seen by this plugin's own prompt.submit hook.
+  await $.prompt.submit({ text: PING, asUser: true })
+}
+
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -121,8 +215,37 @@ export const register: Register = on => {
       description: 'Rewrite a prompt with skills, questions to ask first, acceptance criteria and project context',
       argumentHint: '[prompt]',
     })
+    // A hot reload drops the module's timers; a keepwarm still on picks its schedule up again.
+    const w = await read($, warm)
+    if (w.kind === 'on') await arm($, w)
 
     return next(e)
+  })
+
+  // The person is back: whatever they send ends keepwarm. This plugin's own ping never reaches its own hook.
+  on('prompt.submit', async ($, e, next) => {
+    if ((e.origin.kind === 'composer' || e.origin.kind === 'bridge') && (await read($, warm)).kind === 'on') {
+      await stopWarm($)
+    }
+
+    return next(e)
+  })
+
+  // The cache lives from the last use: time the next ping from the end of the last turn, ping or not.
+  on('turn.complete', async ($, e, next) => {
+    const done = await next(e)
+    const w = await read($, warm)
+    if (!e.agentId && w.kind === 'on') {
+      if (w.sent >= w.total) {
+        await stopWarm($, `${w.total} ping${w.total === 1 ? '' : 's'} sent`)
+      } else {
+        const later: Warm = { ...w, nextAt: (await $.clock.now()) + WARM_INTERVAL_MS }
+        await setWarm($, later)
+        await arm($, later)
+      }
+    }
+
+    return done
   })
 
   on('command.run', { command: 'enhance' }, async ($, e) => {
@@ -158,6 +281,47 @@ export const register: Register = on => {
       await $.prompt.submit({ text: state.text, asUser: true })
     }
 
+    const w = await read($, warm)
+    const now = w.kind === 'on' ? await $.clock.now() : 0
+    const count = w.kind === 'asking' ? await lastCount($) : WARM_DEFAULT
+    const onAsk = async () => ('Input' in els ? setWarm($, { kind: 'asking' }) : startWarm($, await lastCount($)))
+    const onCount = (text: string) => {
+      const n = parseCount(text)
+      if (n === null) {
+        $.ui.toast(`promptdeck: type a whole number of pings from 1 to ${WARM_MAX}.`)
+        return
+      }
+      void startWarm($, n)
+    }
+    const keepwarm =
+      w.kind === 'asking' && 'Input' in els ? (
+        <Box key="warm-ask">
+          <els.Input
+            key="warm-count"
+            label="pings, one per 50 min: "
+            value={String(count)}
+            submitLabel="start"
+            autoFocus
+            onSubmit={onCount}
+          />
+          <Text dimColor>  ·  </Text>
+          <Button key="warm-cancel" plain dimColor hotkey="c" onPress={() => setWarm($, { kind: 'off' })}>Cancel</Button>
+        </Box>
+      ) : w.kind === 'on' ? (
+        <Button key="keepwarm" plain hotkey="w" onPress={() => stopWarm($)}>
+          <Text color={WARM} bold>☼ Warm</Text>
+          <Text color={WARM}>{` ${w.sent}/${w.total}`}</Text>
+          <Text dimColor>
+            {w.sent >= w.total ? ' · last ping' : ` · ping in ${Math.max(1, Math.ceil((w.nextAt - now) / 60_000))}m`}
+          </Text>
+        </Button>
+      ) : (
+        <Button key="keepwarm" plain hotkey="w" onPress={onAsk}>
+          <Text color={WHITE} bold>☼ Keep</Text>
+          <Text color={WARM} bold>warm</Text>
+        </Button>
+      )
+
     return (
       <Box flexDirection="column">
         <Box>
@@ -170,6 +334,8 @@ export const register: Register = on => {
               <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
             </Button>
           )}
+          <Text>   </Text>
+          {keepwarm}
           <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
           {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
