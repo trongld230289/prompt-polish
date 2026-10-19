@@ -8,6 +8,9 @@ const polish = atom({ plugin: 'prompt-polish', key: 'polish' } as const, { kind:
 const CONTEXT_FILES = ['CLAUDE.md', 'README.md', 'package.json']
 const FILE_CAP = 4000
 const SKILL_CAP = 200
+// glancedeck's wordmark colours: white text, the cyan ramp that rolls through "deck".
+const WHITE = '#E6E8EE'
+const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
 
 const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, into a clearer, more complete prompt. Output ONLY the rewritten prompt, nothing before or after it.
 
@@ -140,12 +143,21 @@ export const register: Register = on => {
     return { text: 'prompt-polish: enhancing with haiku; the result lands in the prompt box.' }
   })
 
+  // A click on the animated label: it posts, this presses Enhance.
+  on('ui.message', async ($, e, next) => {
+    if (e.element !== 'enhance-label') return next(e)
+    if ((await read($, polish)).kind !== 'busy') await enhance($, (await $.prompt.read()).text)
+
+    return next(e)
+  })
+
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
     if (e.props.hasSurvey) {
       return next(e)
     }
 
-    const { Box, Button, Text } = $.ui.resolve(e)
+    const els = $.ui.resolve(e)
+    const { Box, Button, Text } = els
     const state = await read($, polish)
     const isBusy = state.kind === 'busy'
 
@@ -160,11 +172,16 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
-          <Button key="enhance" plain hotkey="e" onPress={isBusy ? () => {} : onEnhance}>
-            <Text color="magenta" bold>{isBusy ? '♦ Enhancing…' : '♦ Enhance'}</Text>
-          </Button>
+          {'Client' in els ? (
+            <els.Client key="enhance-label" module="./label.tsx" props={{ isBusy, text: WHITE, ramp: RAMP }} />
+          ) : (
+            <Button key="enhance" plain onPress={isBusy ? () => {} : onEnhance}>
+              <Text color={WHITE} bold>En</Text>
+              <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
+            </Button>
+          )}
           <Text dimColor>  ·  </Text>
-          <Button key="send" plain dimColor hotkey="s" onPress={() => sendDraft($)}>► Send</Button>
+          <Button key="send" plain dimColor onPress={() => sendDraft($)}>► Send</Button>
           <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
           {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then Enter or Send</Text>}

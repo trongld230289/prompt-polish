@@ -30,7 +30,8 @@ test('Enhance rewrites the draft with haiku and fills the prompt box', async ($,
   })
 
   const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'enhance' })
+  await ui.pointer({ type: 'down', x: 2, y: 0, button: 'left' })
+  await ui.pointer({ type: 'up', x: 2, y: 0, button: 'left' })
 
   expect(asked?.model).toBe('haiku')
   expect(asked?.prompt).toContain('thêm nút dark mode')
@@ -44,7 +45,7 @@ test('a failed model call shows a clear message', async ($, on) => {
   on('model.complete', () => ({ value: { isAnswered: false, reason: 'api-error', status: 529, error: 'overloaded', usage: USAGE } as const }))
 
   const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'enhance' })
+  await ui.post({ press: 'enhance' })
 
   expect((await ui.find({ type: 'Text', text: /failed/ }))?.text).toContain('529')
   await ui.unmount()
@@ -62,10 +63,25 @@ test('when the box cannot be filled, the band offers Use this', async ($, on) =>
   })
 
   const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
-  await ui.press({ key: 'enhance' })
+  await ui.post({ press: 'enhance' })
 
   expect((await ui.find({ type: 'Text', text: /Write tests for X/ }))?.text).toContain('Write tests for X')
   await ui.press({ key: 'use' })
   expect(submitted).toBe('Write tests for X')
+  await ui.unmount()
+})
+
+test('the Enhance label plays three breaths, then rests until the 30 s period comes round', async ($) => {
+  const ui = await $.ui.mount({ plugin: 'prompt-polish', surface: 'terminal', ...BAND })
+  expect(await ui.find({ type: 'Text', text: 'En', in: 'enhance-label' })).toBeDefined()
+  await ui.advance(400)
+  expect(await ui.find({ type: 'Text', text: '◊ ', in: 'enhance-label' })).toBeDefined()
+  await ui.advance(5_000)
+  expect(await ui.find({ type: 'Text', text: '♦ ', in: 'enhance-label' })).toBeDefined()
+  await ui.advance(10_000)
+  expect(await ui.find({ type: 'Text', text: '♦ ', in: 'enhance-label' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: '◊ ', in: 'enhance-label' })).toBeUndefined()
+  await ui.advance(15_000)
+  expect(await ui.find({ type: 'Text', text: '◊ ', in: 'enhance-label' })).toBeDefined()
   await ui.unmount()
 })
