@@ -51,20 +51,19 @@ function world(on: On, percentUsed = 40) {
 const turnEnd = ($: Engine) =>
   $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1' } as never)
 
-test('Keepwarm asks how many pings, prefilled with 6, then pings 50 minutes after each turn and stops after the count', async ($, on) => {
+test('Keepwarm asks how many pings, prefilled with 6, pings at once, then 50 minutes after each turn, and stops after the count', async ($, on) => {
   const w = world(on)
   const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.press({ key: 'keepwarm' })
   expect((await ui.find({ key: 'warm-count' }))?.props.value).toBe('6')
   await ui.input({ key: 'warm-count', text: '2', kind: 'submit' })
   expect(w.store.get('warmCount')).toBe(2)
-  expect(await ui.find({ type: 'Text', text: / 0\/2/ })).toBeDefined()
 
-  await w.clock.advance(49 * MIN)
-  expect(w.submitted).toEqual([])
-  await w.clock.advance(1 * MIN)
+  // The first ping goes at once: the last turn may have ended long ago, so waiting could miss the cache.
   expect(w.submitted.length).toBe(1)
   expect(w.submitted[0]).toMatch(/^\[keepwarm\]/)
+  expect(await ui.find({ type: 'Text', text: / 1\/2/ })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /ping in 50m/ })).toBeDefined()
 
   // The ping's turn ends 1 minute later: the next is 50 minutes from then, not from the ping.
   await w.clock.advance(1 * MIN)
@@ -88,9 +87,10 @@ test('a prompt the person types ends keepwarm', async ($, on) => {
   const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.press({ key: 'keepwarm' })
   await ui.input({ key: 'warm-count', text: '6', kind: 'submit' })
+  expect(w.submitted.filter(t => t.startsWith('[keepwarm]')).length).toBe(1)
   await $.prompt.submit({ text: 'tiếp tục nhé', origin: { kind: 'composer' } } as never)
   await w.clock.advance(60 * MIN)
-  expect(w.submitted.filter(t => t.startsWith('[keepwarm]'))).toEqual([])
+  expect(w.submitted.filter(t => t.startsWith('[keepwarm]')).length).toBe(1)
   expect(await ui.find({ type: 'Text', text: /Keep/ })).toBeDefined()
   await ui.unmount()
 })
@@ -100,6 +100,7 @@ test('a spent 5-hour window stops keepwarm instead of pinging', async ($, on) =>
   const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.press({ key: 'keepwarm' })
   await ui.input({ key: 'warm-count', text: '3', kind: 'submit' })
+  expect(w.submitted).toEqual([])
   await w.clock.advance(50 * MIN)
   expect(w.submitted).toEqual([])
   expect(w.toasts.some(t => /usage limit/.test(t))).toBe(true)

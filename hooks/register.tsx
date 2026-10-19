@@ -174,11 +174,14 @@ async function arm($: EngineInterface, w: Extract<Warm, { kind: 'on' }>) {
   minuteTimer = $.clock.every(60_000, () => void update($, warm, x => (x.kind === 'on' ? { ...x } : x)))
 }
 
+/**
+ * The first ping goes at once: the last turn may have ended long ago, and a ping that waits a full interval
+ * from the press could land after the cache has gone. The ones after it are timed from each turn's end.
+ */
 async function startWarm($: EngineInterface, total: number) {
   await $.store.set(WARM_COUNT_KEY, total)
-  const w: Warm = { kind: 'on', total, sent: 0, nextAt: (await $.clock.now()) + WARM_INTERVAL_MS }
-  await setWarm($, w)
-  await arm($, w)
+  await setWarm($, { kind: 'on', total, sent: 0, nextAt: await $.clock.now() })
+  await ping($)
 }
 
 /** True when the 5-hour window is spent and has not reset: a ping would be refused anyway. */

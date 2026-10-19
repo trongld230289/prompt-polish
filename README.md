@@ -31,7 +31,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 **Keepwarm** keeps this session's prompt cache warm while you are away. On a subscription the cache goes cold about an hour after the last turn, and the first prompt after that writes the whole conversation again, which costs far more than a warm turn.
 
-- Press **☼ Keepwarm** before you leave, type how many pings (one every 50 minutes after the last turn; last time's number is filled in, 6 the first time) and press Enter.
+- Press **☼ Keepwarm** before you leave, type how many pings (the first at once, then one every 50 minutes after the last turn; last time's number is filled in, 6 the first time) and press Enter.
 - It stops by itself after that many pings, when you send a prompt, or when the 5-hour usage limit is reached. Press **☼ Warm** to stop it early.
 - Only the session you press it in. Each ping is a short turn (`[keepwarm] ... reply with just: ok`) and counts toward your usage.
 - Keyboard: `ctrl+x tab` focuses the band, then `w`.
