@@ -22,7 +22,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 ## Use
 
-- Type a draft, then press **[ Enhance ]** in the band above the prompt box. The rewrite replaces your draft so you can edit it; press Enter or **[ Send ]**.
+- Type a draft, then press **[ Enhance ]** in the band above the prompt box. The rewrite replaces your draft so you can edit it, then press Enter.
 - `/enhance <prompt>` does the same from a command.
-- Keyboard: `ctrl+x tab` focuses the band, then `e` Enhance, `s` Send.
+- Keyboard: `ctrl+x tab` focuses the band, then `e` Enhance.
 - If the prompt box can't take the text (a dialog is open), the band shows the rewrite with **[ Use this ]** to send it as is.

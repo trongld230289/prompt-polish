@@ -114,17 +114,6 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
   }
 }
 
-async function sendDraft($: EngineInterface): Promise<void> {
-  const { text } = await $.prompt.read()
-  if (text.trim() === '') {
-    $.ui.toast('Nothing to send: the prompt box is empty.')
-    return
-  }
-  await $.prompt.fill({ text: '', mode: 'replace' })
-  await setPolish($, { kind: 'idle' })
-  await $.prompt.submit({ text, asUser: true })
-}
-
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     await $.command.register({
@@ -181,11 +170,9 @@ export const register: Register = on => {
               <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
             </Button>
           )}
-          <Text dimColor>  ·  </Text>
-          <Button key="send" plain dimColor onPress={() => sendDraft($)}>► Send</Button>
           <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
-          {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then Enter or Send</Text>}
+          {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
           {state.kind === 'error' && <Text color="red">✗ {state.message}</Text>}
           {state.kind === 'error' && <Text dimColor>  ·  </Text>}
           {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
