@@ -308,7 +308,7 @@ export const register: Register = on => {
           <Button key="warm-cancel" plain dimColor hotkey="c" onPress={() => setWarm($, { kind: 'off' })}>Cancel</Button>
         </Box>
       ) : w.kind === 'on' ? (
-        <Button key="keepwarm" plain hotkey="w" onPress={() => stopWarm($)}>
+        <Button key="keepwarm" plain onPress={() => stopWarm($)}>
           <Text color={WARM} bold>☼ Warm</Text>
           <Text color={WARM}>{` ${w.sent}/${w.total}`}</Text>
           <Text dimColor>
@@ -316,7 +316,7 @@ export const register: Register = on => {
           </Text>
         </Button>
       ) : (
-        <Button key="keepwarm" plain hotkey="w" onPress={onAsk}>
+        <Button key="keepwarm" plain onPress={onAsk}>
           <Text color={WHITE} bold>☼ Keep</Text>
           <Text color={WARM} bold>warm</Text>
         </Button>
@@ -325,6 +325,8 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
+          {keepwarm}
+          <Text>   </Text>
           {/* Only the terminal: Claude Desktop's Client shell does not start for it, and says so in a band. */}
           {e.surface === 'terminal' && 'Client' in els ? (
             <els.Client key="enhance-label" module="./label.tsx" props={{ isBusy, text: WHITE, ramp: RAMP }} />
@@ -334,8 +336,6 @@ export const register: Register = on => {
               <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
             </Button>
           )}
-          <Text>   </Text>
-          {keepwarm}
           <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
           {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
