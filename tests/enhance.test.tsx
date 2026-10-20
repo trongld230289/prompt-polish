@@ -93,17 +93,21 @@ test('off the terminal the Enhance label is a plain Button, no Client', async ($
   await ui.unmount()
 })
 
-test('under the pointer the Enhance word is underlined and says what a click does', async ($) => {
+test('under the pointer the Enhance word is underlined and the line below says what a click does', async ($) => {
   const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   // The label's Text holds one Text per run: the diamond, then "En".
   const en = async () => (await ui.find({ type: 'Text', text: /Enhance/, in: 'enhance-label' }))?.children[1] as { props: { underline?: boolean } }
   expect((await en())?.props.underline).toBeFalsy()
+  expect(await ui.find({ type: 'Client', key: 'enhance-hint' })).toBeUndefined()
   await ui.pointer({ type: 'enter', x: 2, y: 0 })
   expect((await en())?.props.underline).toBe(true)
   await ui.advance(2_000)
-  expect(await ui.find({ type: 'Text', text: /click to turn your draft into a sharp prompt/, in: 'enhance-label' })).toBeDefined()
-  await ui.pointer({ type: 'leave', x: 2, y: 0 })
-  expect((await en())?.props.underline).toBeFalsy()
+  // The hint is its own Client under the buttons row, not part of the label.
+  expect(await ui.find({ type: 'Client', key: 'enhance-hint' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: /click to turn your draft into a sharp prompt/, in: 'enhance-hint' })).toBeDefined()
   expect(await ui.find({ type: 'Text', text: /click to/, in: 'enhance-label' })).toBeUndefined()
+  await ui.pointer({ type: 'leave', x: 2, y: 0, in: 'enhance-label' })
+  expect((await en())?.props.underline).toBeFalsy()
+  expect(await ui.find({ type: 'Client', key: 'enhance-hint' })).toBeUndefined()
   await ui.unmount()
 })

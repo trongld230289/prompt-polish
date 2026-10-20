@@ -16,6 +16,6 @@ export type Cleared = { text: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'promptdeck': { polish: Polish; warm: Warm; cleared: Cleared }
+    'promptdeck': { polish: Polish; warm: Warm; cleared: Cleared; hover: boolean }
   }
 }
