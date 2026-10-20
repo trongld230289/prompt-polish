@@ -1,6 +1,8 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, Timer } from 'claude-code'
 
+import { SYSTEM, stripKind } from './prompt'
+import { SAMPLES } from './samples'
 import type { Cleared, Polish, Recent, Warm } from '../types'
 
 const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
@@ -36,35 +38,7 @@ const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
 const WARM = '#F2A65A'
 const ROSE = '#F26D7D'
 
-const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, so Claude does the right thing on the first try. Output ONLY the rewritten prompt, nothing before or after it.
 
-Size it to the draft:
-- No real request in the draft (a number, a stray word, a test): reply with ONE short question asking what they want. Nothing else.
-- A small, clear task ("rename X to Y", "fix the typo in the README"): 1 to 3 sentences. No headings, no lists.
-- A real feature, bug or refactor: at most 10 lines. The task in 1 or 2 sentences, then only the sections that add something, each a short headed list in the draft's language:
-  "Ask me first": at most 2 questions, only where the draft is truly ambiguous.
-  "Done when": at most 3 checks.
-  "Use": skills from AVAILABLE SKILLS that genuinely fit, by exact name. Omit if none.
-Never pad a section to fill it. Omit any section with nothing to say. Fewer words beat more.
-
-Keep:
-- The draft's language: Vietnamese stays Vietnamese, English stays English. File names, code and skill names as written.
-- The person's intent and every concrete detail they gave. Add nothing they did not imply.
-- Their voice: the person speaking to Claude ("Fix...", "Add..."), not a specification.
-
-Use the context:
-- SESSION says what Claude just did and which files are in play. Turn vague references ("that", "the bug", "it", "cái đó") into the concrete file, function or change they mean. If SESSION is empty, leave the reference as it is.
-- PROJECT gives the stack, commands and conventions. Mention one only when it changes how the task should be done.
-
-Examples:
-Draft: fix it
-Session: Claude just moved the Clear button into a Box with flexShrink 0 in hooks/register.tsx; the band still wraps when the error shows.
-Rewrite: Fix the band in hooks/register.tsx so it stays on one line when the error text shows: the status Box should give way and truncate before the Clear button does. Run the plugin tests after.
-
-Draft: thêm dark mode
-Rewrite: Thêm dark mode cho app.
-Hỏi trước: theo system setting hay có toggle riêng? Lưu lựa chọn ở đâu?
-Xong khi: mọi màn hình đọc được ở cả 2 theme; toggle giữ trạng thái sau khi reload.`
 
 type Skill = { name: string; description: string }
 
@@ -150,6 +124,42 @@ function failure(result: Exclude<ModelCompleteResult, { isAnswered: true }>): st
   return 'Enhance failed: the model call timed out or was cancelled.'
 }
 
+/** The call Enhance makes, exactly: the eval command makes the same one over the samples. */
+function userPrompt(parts: { session: string; project: string; skillLines: string; draft: string }): string {
+  return `SESSION:\n${parts.session || '(nothing yet)'}\n\nPROJECT:\n${parts.project || '(none found)'}\n\nAVAILABLE SKILLS:\n${parts.skillLines}\n\nDRAFT PROMPT:\n${parts.draft}`
+}
+
+function askModel($: EngineInterface, prompt: string): Promise<ModelCompleteResult> {
+  return $.model.complete({ model: 'haiku', system: SYSTEM, prompt, maxTokens: 1024, timeoutMs: 90_000 })
+}
+
+/**
+ * Runs the real model over the samples (or the ones named) the way Enhance does, and writes a report to grade:
+ * each draft, what a good rewrite must do, what came back, its kind and length.
+ */
+async function evaluate($: EngineInterface, ids: readonly string[]): Promise<{ report: string; summary: string }> {
+  const picked = ids.length === 0 ? SAMPLES : SAMPLES.filter(s => ids.includes(s.id))
+  const skills = pickSkills(await listSkills($), picked.map(s => s.draft).join(' '), 40)
+  const skillLines = skills.length === 0 ? '(none listed)' : skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
+  const started = await $.clock.now()
+  const results = await Promise.all(
+    picked.map(async sample => {
+      const result = await askModel($, userPrompt({ session: sample.session, project: sample.project ?? '', skillLines, draft: sample.draft }))
+      const reply = result.isAnswered ? result.text : `(no answer: ${failure(result)})`
+      const { kind, text } = stripKind(reply)
+
+      return { sample, kind, text, lines: text === '' ? 0 : text.split('\n').length }
+    }),
+  )
+  const ms = (await $.clock.now()) - started
+  const report = results
+    .map(r => `## ${r.sample.id}  (kind ${r.kind ?? 'none'}, ${r.lines} lines)\n\n**Draft**\n\n\`\`\`\n${r.sample.draft}\n\`\`\`\n\n**Expect:** ${r.sample.expect}\n\n**Got**\n\n\`\`\`\n${r.text}\n\`\`\`\n`)
+    .join('\n')
+  const summary = results.map(r => `${r.sample.id}: ${r.kind ?? 'none'}, ${r.lines} lines`).join('\n')
+
+  return { report: `# promptdeck Enhance eval, ${picked.length} samples in ${Math.round(ms / 1000)} s\n\n${report}`, summary }
+}
+
 async function enhance($: EngineInterface, draft: string): Promise<void> {
   const text = draft.trim()
   if (text === '') {
@@ -173,13 +183,7 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
       last.answer ? `Claude's last answer (cut):\n${last.answer}` : '',
     ].filter(part => part !== '').join('\n\n')
 
-    const result = await $.model.complete({
-      model: 'haiku',
-      system: SYSTEM,
-      prompt: `SESSION:\n${session || '(nothing yet)'}\n\nPROJECT:\n${files || '(none found)'}\n\nAVAILABLE SKILLS:\n${skillLines}\n\nDRAFT PROMPT:\n${text}`,
-      maxTokens: 1024,
-      timeoutMs: 90_000,
-    })
+    const result = await askModel($, userPrompt({ session, project: files, skillLines, draft: text }))
 
     if (!result.isAnswered) {
       const message = failure(result)
@@ -187,7 +191,8 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
       return
     }
 
-    const rewritten = result.text.trim()
+    // The first line names the kind haiku sorted the draft into; the prompt is what is under it.
+    const rewritten = stripKind(result.text).text
     const filled = await $.prompt.fill({ text: rewritten, mode: 'replace' })
     await setPolish($, filled.isFilled ? { kind: 'filled' } : { kind: 'proposed', text: rewritten })
     if (filled.isFilled) {
@@ -294,6 +299,11 @@ export const register: Register = on => {
       description: 'Rewrite a prompt with skills, questions to ask first, acceptance criteria and project context',
       argumentHint: '[prompt]',
     })
+    await $.command.register({
+      name: 'enhance-eval',
+      description: 'Run the real model over the sample drafts the way Enhance does and write a report to grade',
+      argumentHint: '[sample id ...]',
+    })
     // A hot reload drops the module's timers; a keepwarm still on picks its schedule up again.
     const w = await read($, warm)
     if (w.kind === 'on') await arm($, w)
@@ -340,6 +350,21 @@ export const register: Register = on => {
     void enhance($, draft)
 
     return { text: 'promptdeck: enhancing with haiku; the result lands in the prompt box.' }
+  })
+
+  // The samples through the real model, the report in the home folder: the way to grade a prompt change.
+  on('command.run', { command: 'enhance-eval' }, async ($, e) => {
+    const ids = e.args.split(/\s+/).filter(id => id !== '')
+    const { report, summary } = await evaluate($, ids)
+    const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? '.'
+    const path = `${home.split('\\').join('/')}/promptdeck-enhance-eval.md`
+    try {
+      await $.fs.write(path, report)
+    } catch (error) {
+      return { text: `promptdeck: could not write ${path} (${error instanceof Error ? error.message : String(error)})\n\n${report}` }
+    }
+
+    return { text: `promptdeck: enhance eval written to ${path}\n${summary}` }
   })
 
   // A click on the animated label: it posts, this presses Enhance.
