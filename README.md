@@ -1,6 +1,6 @@
 # promptdeck
 
-A Claude Code mod with two buttons in the band above the prompt box: **Enhance** and **Keepwarm**.
+A Claude Code mod with buttons in the band above the prompt box: **Enhance**, **Keepwarm**, **Clear** and **Undo**.
 
 **Enhance** rewrites your draft prompt with haiku before you send it. The rewrite names the installed skills that fit the task, lists the decisions Claude should ask you about first, describes what "done" looks like, and adds project context from `CLAUDE.md`, `README.md` and `package.json`. It keeps the language you wrote in.
 
@@ -35,5 +35,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 - It stops by itself after that many pings, when you send a prompt, or when the 5-hour usage limit is reached. Press **☼ Warm** to stop it early.
 - Only the session you press it in. Each ping is a short turn (`[keepwarm] ... reply with just: ok`) and counts toward your usage.
 - Keyboard: `ctrl+x tab` focuses the band, then `w`.
+
+**× Clear** empties the prompt box in one press (the keyboard way is `ctrl+l`); **Undo** then appears and puts that draft back. One step only: a second Clear replaces what Undo would restore.
 
 Renamed from prompt-polish: `claude plugin uninstall prompt-polish`, then install promptdeck as above.

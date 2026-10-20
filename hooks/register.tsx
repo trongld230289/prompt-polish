@@ -1,10 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, Timer } from 'claude-code'
 
-import type { Polish, Warm } from '../types'
+import type { Cleared, Polish, Warm } from '../types'
 
 const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
 const warm = atom({ plugin: 'promptdeck', key: 'warm' } as const, { kind: 'off' } as Warm)
+const clearedDraft = atom({ plugin: 'promptdeck', key: 'cleared' } as const, { text: '' } as Cleared)
 
 // The subscription prompt cache lives about an hour from its last use: a ping 50 minutes after the last turn reads
 // it (cheap) and so keeps it, where the first prompt after a cold cache writes the whole conversation again.
@@ -278,6 +279,20 @@ export const register: Register = on => {
 
     const onEnhance = async () => enhance($, (await $.prompt.read()).text)
     const onDismiss = () => setPolish($, { kind: 'idle' })
+    // Clear empties the box and keeps the draft; Undo puts that draft back (the engine's ctrl+_ undo is not
+    // reachable from a mod, so the band keeps its own one step).
+    const cleared = await read($, clearedDraft)
+    const onClear = async () => {
+      const { text } = await $.prompt.read()
+      if (text === '') return
+      const { isFilled } = await $.prompt.fill({ text: '', mode: 'replace' })
+      if (isFilled) await update($, clearedDraft, () => ({ text }))
+    }
+    const onUndo = async () => {
+      if (cleared.text === '') return
+      const { isFilled } = await $.prompt.fill({ text: cleared.text, mode: 'replace' })
+      if (isFilled) await update($, clearedDraft, () => ({ text: '' }))
+    }
     const onUse = async () => {
       if (state.kind !== 'proposed') return
       await setPolish($, { kind: 'idle' })
@@ -339,6 +354,10 @@ export const register: Register = on => {
               <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
             </Button>
           )}
+          <Text>   </Text>
+          <Button key="clear" plain dimColor onPress={onClear}>× Clear</Button>
+          {cleared.text !== '' && <Text>   </Text>}
+          {cleared.text !== '' && <Button key="undo" plain dimColor onPress={onUndo}>Undo</Button>}
           <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
           {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}

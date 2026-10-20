@@ -11,8 +11,11 @@ export type Warm =
   | { kind: 'asking' }
   | { kind: 'on'; total: number; sent: number; nextAt: number }
 
+/** The draft the Clear button took out of the prompt box, for Undo; `''` when there is nothing to put back. */
+export type Cleared = { text: string }
+
 declare module 'claude-code' {
   interface PluginState {
-    'promptdeck': { polish: Polish; warm: Warm }
+    'promptdeck': { polish: Polish; warm: Warm; cleared: Cleared }
   }
 }
