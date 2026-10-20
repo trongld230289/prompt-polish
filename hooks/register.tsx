@@ -23,6 +23,7 @@ const SKILL_CAP = 200
 const WHITE = '#E6E8EE'
 const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
 const WARM = '#F2A65A'
+const ROSE = '#F26D7D'
 
 const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, into a clearer, more complete prompt. Output ONLY the rewritten prompt, nothing before or after it.
 
@@ -355,15 +356,25 @@ export const register: Register = on => {
             </Button>
           )}
           <Text>   </Text>
-          <Button key="clear" plain dimColor onPress={onClear}>× Clear</Button>
-          {cleared.text !== '' && <Text>   </Text>}
-          {cleared.text !== '' && <Button key="undo" plain dimColor onPress={onUndo}>Undo</Button>}
-          <Text>   </Text>
           {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
           {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
           {state.kind === 'error' && <Text color="red">✗ {state.message}</Text>}
           {state.kind === 'error' && <Text dimColor>  ·  </Text>}
           {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
+          {/* Clear and Undo sit at the band's right edge; the spacer takes the room between. */}
+          <Box flexGrow={1} />
+          <Button key="clear" plain onPress={onClear}>
+            <Text color={ROSE} bold hover={{ scope: 'clear', underline: true }}>×</Text>
+            <Text color={WHITE} bold hover={{ scope: 'clear', underline: true }}> Clear</Text>
+          </Button>
+          {cleared.text !== '' && <Text>   </Text>}
+          {cleared.text !== '' && (
+            <Button key="undo" plain onPress={onUndo}>
+              <Text color={WARM} bold hover={{ scope: 'undo', underline: true }}>«</Text>
+              <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}> Undo</Text>
+            </Button>
+          )}
+          <Text> </Text>
         </Box>
         {state.kind === 'proposed' && (
           <Box flexDirection="column">
