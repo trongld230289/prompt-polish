@@ -38,6 +38,4 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 
 **× Clear** empties the prompt box in one press (the keyboard way is `ctrl+l`); **Undo** then appears and puts that draft back. One step only: a second Clear replaces what Undo would restore.
 
-The band is two lines: the buttons, and under them a status line that shows only when there is something to say (what Enhance is doing, or what a click does while Enhance is under the pointer).
-
 Renamed from prompt-polish: `claude plugin uninstall prompt-polish`, then install promptdeck as above.

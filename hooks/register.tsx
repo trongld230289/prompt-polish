@@ -6,9 +6,6 @@ import type { Cleared, Polish, Warm } from '../types'
 const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
 const warm = atom({ plugin: 'promptdeck', key: 'warm' } as const, { kind: 'off' } as Warm)
 const clearedDraft = atom({ plugin: 'promptdeck', key: 'cleared' } as const, { text: '' } as Cleared)
-// Whether Enhance is under the pointer: the label's Client posts it, the band draws the hint on its status line.
-const enhanceHover = atom({ plugin: 'promptdeck', key: 'hover' } as const, false as boolean)
-const HINT = 'click to turn your draft into a sharp prompt'
 
 // The subscription prompt cache lives about an hour from its last use: a ping 50 minutes after the last turn reads
 // it (cheap) and so keeps it, where the first prompt after a cold cache writes the whole conversation again.
@@ -26,7 +23,6 @@ const SKILL_CAP = 200
 const WHITE = '#E6E8EE'
 const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
 const WARM = '#F2A65A'
-const ROSE = '#F26D7D'
 
 const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, into a clearer, more complete prompt. Output ONLY the rewritten prompt, nothing before or after it.
 
@@ -263,15 +259,9 @@ export const register: Register = on => {
     return { text: 'promptdeck: enhancing with haiku; the result lands in the prompt box.' }
   })
 
-  // The animated label posts: a hover (the band draws the hint on its status line) or a click (this presses Enhance).
+  // A click on the animated label: it posts, this presses Enhance.
   on('ui.message', async ($, e, next) => {
     if (e.element !== 'enhance-label') return next(e)
-    const data = e.data as { press?: string; hover?: boolean } | null
-    if (typeof data?.hover === 'boolean') {
-      const isHover = data.hover
-      await update($, enhanceHover, () => isHover)
-      return next(e)
-    }
     if ((await read($, polish)).kind !== 'busy') await enhance($, (await $.prompt.read()).text)
 
     return next(e)
@@ -350,24 +340,6 @@ export const register: Register = on => {
         </Button>
       )
 
-    const isHover = await read($, enhanceHover)
-    const status =
-      state.kind === 'busy' ? (
-        <Text dimColor italic>rewriting with haiku…</Text>
-      ) : state.kind === 'filled' ? (
-        <Text color="green">✓ enhanced, edit it then press Enter</Text>
-      ) : state.kind === 'error' ? (
-        <Box>
-          <Text color="red">✗ {state.message}</Text>
-          <Text dimColor>  ·  </Text>
-          <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>
-        </Box>
-      ) : isHover && e.surface === 'terminal' && 'Client' in els ? (
-        <els.Client key="enhance-hint" module="./hint.tsx" props={{ text: HINT, color: RAMP[1] ?? WHITE, cursor: RAMP[0] ?? WHITE }} />
-      ) : isHover ? (
-        <Text color={RAMP[1]}>{HINT}</Text>
-      ) : null
-
     return (
       <Box flexDirection="column">
         <Box>
@@ -383,20 +355,16 @@ export const register: Register = on => {
             </Button>
           )}
           <Text>   </Text>
-          <Button key="clear" plain onPress={onClear}>
-            <Text color={ROSE} bold hover={{ scope: 'clear', underline: true }}>×</Text>
-            <Text color={WHITE} bold hover={{ scope: 'clear', underline: true }}> Clear</Text>
-          </Button>
+          <Button key="clear" plain dimColor onPress={onClear}>× Clear</Button>
           {cleared.text !== '' && <Text>   </Text>}
-          {cleared.text !== '' && (
-            <Button key="undo" plain onPress={onUndo}>
-              <Text color={WARM} bold hover={{ scope: 'undo', underline: true }}>«</Text>
-              <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}> Undo</Text>
-            </Button>
-          )}
+          {cleared.text !== '' && <Button key="undo" plain dimColor onPress={onUndo}>Undo</Button>}
+          <Text>   </Text>
+          {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
+          {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
+          {state.kind === 'error' && <Text color="red">✗ {state.message}</Text>}
+          {state.kind === 'error' && <Text dimColor>  ·  </Text>}
+          {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
         </Box>
-        {/* The status line: what Enhance is doing, or what a click would do while it is under the pointer. */}
-        {status && <Box>{status}</Box>}
         {state.kind === 'proposed' && (
           <Box flexDirection="column">
             <Text dimColor>{state.text}</Text>
