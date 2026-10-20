@@ -92,7 +92,7 @@ function failure(result: Exclude<ModelCompleteResult, { isAnswered: true }>): st
 async function enhance($: EngineInterface, draft: string): Promise<void> {
   const text = draft.trim()
   if (text === '') {
-    await setPolish($, { kind: 'error', message: 'Type a prompt first, then Enhance.' })
+    await setPolish($, { kind: 'error', message: 'type a prompt first' })
     return
   }
   if ((await read($, polish)).kind === 'busy') {
@@ -354,33 +354,36 @@ export const register: Register = on => {
           <Text>   </Text>
           {/* Only the terminal: Claude Desktop's Client shell does not start for it, and says so in a band. */}
           {e.surface === 'terminal' && 'Client' in els ? (
-            <els.Client key="enhance-label" module="./label.tsx" props={{ isBusy, text: WHITE, ramp: RAMP }} />
+            <els.Client key="enhance-label" module="./label.tsx" props={{ isBusy, isQuiet: state.kind !== 'idle', text: WHITE, ramp: RAMP }} />
           ) : (
             <Button key="enhance" plain onPress={isBusy ? () => {} : onEnhance}>
               <Text color={WHITE} bold>En</Text>
               <Text color={RAMP[0]} bold>{isBusy ? 'hancing' : 'hance'}</Text>
             </Button>
           )}
-          <Text>   </Text>
-          {state.kind === 'busy' && <Text dimColor italic>rewriting with haiku…</Text>}
-          {state.kind === 'filled' && <Text color="green">✓ enhanced, edit it then press Enter</Text>}
-          {state.kind === 'error' && <Text color="red">✗ {state.message}</Text>}
-          {state.kind === 'error' && <Text dimColor>  ·  </Text>}
-          {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
-          {/* Clear and Undo sit at the band's right edge; the spacer takes the room between. */}
-          <Box flexGrow={1} />
-          <Button key="clear" plain onPress={onClear}>
-            <Text color={ROSE} bold hover={{ scope: 'clear', underline: true }}>×</Text>
-            <Text color={WHITE} bold hover={{ scope: 'clear', underline: true }}> Clear</Text>
-          </Button>
-          {cleared.text !== '' && <Text>   </Text>}
-          {cleared.text !== '' && (
-            <Button key="undo" plain onPress={onUndo}>
-              <Text color={WARM} bold hover={{ scope: 'undo', underline: true }}>«</Text>
-              <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}> Undo</Text>
+          {/* The status takes the room between the buttons and gives way first: one line, cut at its end, never wrapped. */}
+          <Box flexGrow={1} flexShrink={1} minWidth={0} marginLeft={3}>
+            {state.kind === 'busy' && <Text dimColor italic wrap="truncate-end">rewriting with haiku…</Text>}
+            {state.kind === 'filled' && <Text color="green" wrap="truncate-end">✓ enhanced, edit it then press Enter</Text>}
+            {state.kind === 'error' && <Text color="red" wrap="truncate-end">✗ {state.message}</Text>}
+            {state.kind === 'error' && <Text dimColor> · </Text>}
+            {state.kind === 'error' && <Button key="dismiss" plain dimColor hotkey="d" onPress={onDismiss}>Dismiss</Button>}
+          </Box>
+          {/* Clear and Undo keep their place at the band's right edge. */}
+          <Box flexShrink={0} marginLeft={3}>
+            <Button key="clear" plain onPress={onClear}>
+              <Text color={ROSE} bold hover={{ scope: 'clear', underline: true }}>×</Text>
+              <Text color={WHITE} bold hover={{ scope: 'clear', underline: true }}> Clear</Text>
             </Button>
-          )}
-          <Text> </Text>
+            {cleared.text !== '' && <Text>   </Text>}
+            {cleared.text !== '' && (
+              <Button key="undo" plain onPress={onUndo}>
+                <Text color={WARM} bold hover={{ scope: 'undo', underline: true }}>«</Text>
+                <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}> Undo</Text>
+              </Button>
+            )}
+            <Text> </Text>
+          </Box>
         </Box>
         {state.kind === 'proposed' && (
           <Box flexDirection="column">

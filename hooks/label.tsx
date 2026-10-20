@@ -3,7 +3,8 @@
 // is underlined and says what a click does; a click presses it.
 import type { ClientModule } from 'claude-code'
 
-type Props = { isBusy: boolean; text: string; ramp: string[] }
+// `isQuiet`: the band is showing a status after the word, so the hover hint stays out of its way.
+type Props = { isBusy: boolean; isQuiet?: boolean; text: string; ramp: string[] }
 type State = { ticks: number; isBusy: boolean; isHover: boolean; typed: number; stopTyping?: () => void }
 
 const STEP_MS = 400
@@ -67,8 +68,8 @@ const Label: ClientModule<Props, State> = (props, surface) => {
           {ch}
         </Text>
       ))}
-      {ref.isHover && !props.isBusy && <Text color={props.ramp[1] ?? lead}>{HINT.slice(0, ref.typed)}</Text>}
-      {ref.isHover && !props.isBusy && ref.typed < HINT.length && <Text color={lead}>▌</Text>}
+      {ref.isHover && !props.isBusy && !props.isQuiet && <Text color={props.ramp[1] ?? lead}>{HINT.slice(0, ref.typed)}</Text>}
+      {ref.isHover && !props.isBusy && !props.isQuiet && ref.typed < HINT.length && <Text color={lead}>▌</Text>}
     </Text>
   )
 }
