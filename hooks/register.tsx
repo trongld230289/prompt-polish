@@ -1,16 +1,11 @@
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, ModelCompleteResult, Register, Timer } from 'claude-code'
 
-import { SYSTEM, stripKind } from './prompt'
-import { SAMPLES } from './samples'
-import type { Cleared, Polish, Recent, Warm } from '../types'
+import type { Cleared, Polish, Warm } from '../types'
 
 const polish = atom({ plugin: 'promptdeck', key: 'polish' } as const, { kind: 'idle' } as Polish)
 const warm = atom({ plugin: 'promptdeck', key: 'warm' } as const, { kind: 'off' } as Warm)
-// The draft a press took out of the box (Clear, or Enhance's rewrite over it), for the Undo / Original button.
-const clearedDraft = atom({ plugin: 'promptdeck', key: 'cleared' } as const, { text: '', why: 'clear' } as Cleared)
-// What just happened in the session, so Enhance can turn "fix it" into the concrete thing.
-const recent = atom({ plugin: 'promptdeck', key: 'recent' } as const, { prompt: '', answer: '' } as Recent)
+const clearedDraft = atom({ plugin: 'promptdeck', key: 'cleared' } as const, { text: '' } as Cleared)
 
 // The subscription prompt cache lives about an hour from its last use: a ping 50 minutes after the last turn reads
 // it (cheap) and so keeps it, where the first prompt after a cold cache writes the whole conversation again.
@@ -26,19 +21,25 @@ const FILLED_MS = 5_000
 const CONTEXT_FILES = ['CLAUDE.md', 'README.md', 'package.json']
 const FILE_CAP = 4000
 const SKILL_CAP = 200
-// How many skills reach haiku: the ones whose name or description shares words with the draft, best first.
-const SKILL_PICK = 25
-// What of the session rides along: the person's last prompt, Claude's last answer, the git state.
-const PROMPT_CAP = 600
-const ANSWER_CAP = 1500
-const GIT_LINES = 30
 // glancedeck's wordmark colours: white text, the cyan ramp that rolls through "deck".
 const WHITE = '#E6E8EE'
 const RAMP = ['#5EE6E6', '#3BB0B3', '#167A80']
 const WARM = '#F2A65A'
 const ROSE = '#F26D7D'
 
+const SYSTEM = `You rewrite a developer's draft prompt for Claude Code, an AI coding agent, into a clearer, more complete prompt. Output ONLY the rewritten prompt, nothing before or after it.
 
+Rules:
+- Write in the SAME language as the draft. A Vietnamese draft stays Vietnamese; an English draft stays English. Technical terms, file names and skill names stay as they are.
+- Keep the person's intent and every concrete detail they gave. Do not invent requirements they did not imply.
+- Write it as the person speaking to Claude ("I want...", "Use...").
+- Structure it with these short sections, headed in the draft's language:
+  1. The task: the request, restated clearly.
+  2. Skills to use: only skills from the AVAILABLE SKILLS list that genuinely fit the task, by exact name, each with a few words on why. Omit the section if none fit.
+  3. Ask me first: the key decisions Claude must ask about BEFORE starting the work (scope, approach, trade-offs, anything ambiguous). At most 5.
+  4. Done when: acceptance criteria describing what the finished result looks like, as a checklist.
+  5. Project context: only the facts from the PROJECT FILES that matter for this task (stack, commands, conventions). Omit it if nothing applies.
+- Be concise. No preamble, no closing remarks, no code fences around the whole prompt.`
 
 type Skill = { name: string; description: string }
 
@@ -50,50 +51,13 @@ async function listSkills($: EngineInterface): Promise<Skill[]> {
   try {
     const commands = await $.command.list()
 
-    // Built-in skills count (code-review, security-review, simplify...); MCP prompts do not.
     return commands
-      .filter(c => c.source !== 'mcp')
+      .filter(c => c.source === 'plugin' || c.source === 'user')
       .filter(c => c.plugin !== 'promptdeck')
       .slice(0, SKILL_CAP)
       .map(c => ({ name: c.name, description: c.description.slice(0, 160) }))
   } catch {
     return []
-  }
-}
-
-/** The words of a text worth matching on: letters and digits, lowercased, three characters or more. */
-function words(text: string): Set<string> {
-  return new Set(text.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter(w => w.length >= 3))
-}
-
-/** The skills nearest the draft: those sharing words with it first, by how many, then the list's own order. */
-export function pickSkills(skills: Skill[], draft: string, limit = SKILL_PICK): Skill[] {
-  const wanted = words(draft)
-  const scored = skills.map((skill, i) => {
-    const own = words(`${skill.name} ${skill.description}`)
-    let score = 0
-    for (const w of wanted) if (own.has(w)) score += 1
-    return { skill, score, i }
-  })
-  scored.sort((a, b) => b.score - a.score || a.i - b.i)
-
-  return scored.slice(0, limit).map(s => s.skill)
-}
-
-/** The branch and the changed files, as `git` says them; '' outside a repository or when git is not there. */
-async function readGit($: EngineInterface): Promise<string> {
-  try {
-    const [branch, status] = await Promise.all([
-      $.process.run(['git', 'branch', '--show-current'], { timeoutMs: 5_000 }),
-      $.process.run(['git', 'status', '--short'], { timeoutMs: 5_000 }),
-    ])
-    if (branch.exitCode !== 0 && status.exitCode !== 0) return ''
-    const lines = status.stdout.trim().split('\n').filter(l => l !== '')
-    const shown = lines.slice(0, GIT_LINES).join('\n') + (lines.length > GIT_LINES ? `\n[... ${lines.length - GIT_LINES} more]` : '')
-
-    return `Branch: ${branch.stdout.trim() || '(none)'}\nChanged files:\n${shown || '(clean)'}`
-  } catch {
-    return ''
   }
 }
 
@@ -125,42 +89,6 @@ function failure(result: Exclude<ModelCompleteResult, { isAnswered: true }>): st
   return 'Enhance failed: the model call timed out or was cancelled.'
 }
 
-/** The call Enhance makes, exactly: the eval command makes the same one over the samples. */
-function userPrompt(parts: { session: string; project: string; skillLines: string; draft: string }): string {
-  return `SESSION:\n${parts.session || '(nothing yet)'}\n\nPROJECT:\n${parts.project || '(none found)'}\n\nAVAILABLE SKILLS:\n${parts.skillLines}\n\nDRAFT PROMPT:\n${parts.draft}`
-}
-
-function askModel($: EngineInterface, prompt: string): Promise<ModelCompleteResult> {
-  return $.model.complete({ model: 'haiku', system: SYSTEM, prompt, maxTokens: 1024, timeoutMs: 90_000 })
-}
-
-/**
- * Runs the real model over the samples (or the ones named) the way Enhance does, and writes a report to grade:
- * each draft, what a good rewrite must do, what came back, its kind and length.
- */
-async function evaluate($: EngineInterface, ids: readonly string[]): Promise<{ report: string; summary: string }> {
-  const picked = ids.length === 0 ? SAMPLES : SAMPLES.filter(s => ids.includes(s.id))
-  const skills = pickSkills(await listSkills($), picked.map(s => s.draft).join(' '), 40)
-  const skillLines = skills.length === 0 ? '(none listed)' : skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
-  const started = await $.clock.now()
-  const results = await Promise.all(
-    picked.map(async sample => {
-      const result = await askModel($, userPrompt({ session: sample.session, project: sample.project ?? '', skillLines, draft: sample.draft }))
-      const reply = result.isAnswered ? result.text : `(no answer: ${failure(result)})`
-      const { kind, text } = stripKind(reply)
-
-      return { sample, kind, text, lines: text === '' ? 0 : text.split('\n').length }
-    }),
-  )
-  const ms = (await $.clock.now()) - started
-  const report = results
-    .map(r => `## ${r.sample.id}  (kind ${r.kind ?? 'none'}, ${r.lines} lines)\n\n**Draft**\n\n\`\`\`\n${r.sample.draft}\n\`\`\`\n\n**Expect:** ${r.sample.expect}\n\n**Got**\n\n\`\`\`\n${r.text}\n\`\`\`\n`)
-    .join('\n')
-  const summary = results.map(r => `${r.sample.id}: ${r.kind ?? 'none'}, ${r.lines} lines`).join('\n')
-
-  return { report: `# promptdeck Enhance eval, ${picked.length} samples in ${Math.round(ms / 1000)} s\n\n${report}`, summary }
-}
-
 async function enhance($: EngineInterface, draft: string): Promise<void> {
   const text = draft.trim()
   if (text === '') {
@@ -173,18 +101,18 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
   await setPolish($, { kind: 'busy' })
 
   try {
-    const [skills, files, git, last] = await Promise.all([listSkills($), readProjectFiles($), readGit($), read($, recent)])
-    const picked = pickSkills(skills, text)
-    const skillLines = picked.length === 0
+    const [skills, files] = await Promise.all([listSkills($), readProjectFiles($)])
+    const skillLines = skills.length === 0
       ? '(none listed)'
-      : picked.map(s => `- ${s.name}: ${s.description}`).join('\n')
-    const session = [
-      git,
-      last.prompt ? `The person's last prompt:\n${last.prompt}` : '',
-      last.answer ? `Claude's last answer (cut):\n${last.answer}` : '',
-    ].filter(part => part !== '').join('\n\n')
+      : skills.map(s => `- ${s.name}: ${s.description}`).join('\n')
 
-    const result = await askModel($, userPrompt({ session, project: files, skillLines, draft: text }))
+    const result = await $.model.complete({
+      model: 'haiku',
+      system: SYSTEM,
+      prompt: `AVAILABLE SKILLS:\n${skillLines}\n\nPROJECT FILES:\n${files || '(none found)'}\n\nDRAFT PROMPT:\n${text}`,
+      maxTokens: 2048,
+      timeoutMs: 90_000,
+    })
 
     if (!result.isAnswered) {
       const message = failure(result)
@@ -192,13 +120,11 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
       return
     }
 
-    // The first line names the kind haiku sorted the draft into; the prompt is what is under it.
-    const rewritten = stripKind(result.text).text
+    const rewritten = result.text.trim()
     const filled = await $.prompt.fill({ text: rewritten, mode: 'replace' })
     await setPolish($, filled.isFilled ? { kind: 'filled' } : { kind: 'proposed', text: rewritten })
+    // The "enhanced" line says its piece and goes, unless something else has taken its place by then.
     if (filled.isFilled) {
-      // The draft the rewrite replaced, one press away; and the "enhanced" line says its piece and goes.
-      await update($, clearedDraft, () => ({ text, why: 'enhance' }))
       $.clock.after(FILLED_MS, () => void update($, polish, p => (p.kind === 'filled' ? { kind: 'idle' } : p)))
     }
   } catch (error) {
@@ -300,11 +226,6 @@ export const register: Register = on => {
       description: 'Rewrite a prompt with skills, questions to ask first, acceptance criteria and project context',
       argumentHint: '[prompt]',
     })
-    await $.command.register({
-      name: 'enhance-eval',
-      description: 'Run the real model over the sample drafts the way Enhance does and write a report to grade',
-      argumentHint: '[sample id ...]',
-    })
     // A hot reload drops the module's timers; a keepwarm still on picks its schedule up again.
     const w = await read($, warm)
     if (w.kind === 'on') await arm($, w)
@@ -314,11 +235,8 @@ export const register: Register = on => {
 
   // The person is back: whatever they send ends keepwarm. This plugin's own ping never reaches its own hook.
   on('prompt.submit', async ($, e, next) => {
-    if (e.origin.kind === 'composer' || e.origin.kind === 'bridge') {
-      if ((await read($, warm)).kind === 'on') await stopWarm($)
-      // A sent prompt is the newest context for the next Enhance, and nothing of it is left to put back.
-      await update($, recent, r => ({ ...r, prompt: e.text.slice(0, PROMPT_CAP) }))
-      await update($, clearedDraft, () => ({ text: '', why: 'clear' }))
+    if ((e.origin.kind === 'composer' || e.origin.kind === 'bridge') && (await read($, warm)).kind === 'on') {
+      await stopWarm($)
     }
 
     return next(e)
@@ -327,11 +245,6 @@ export const register: Register = on => {
   // The cache lives from the last use: time the next ping from the end of the last turn, ping or not.
   on('turn.complete', async ($, e, next) => {
     const done = await next(e)
-    // The main loop's answer is what "it" and "that" in the next draft refer to.
-    // A keepwarm ping's "ok" is not context; anything longer is.
-    if (!e.agentId && typeof e.answer === 'string' && e.answer.trim().length > 4) {
-      await update($, recent, r => ({ ...r, answer: e.answer.slice(0, ANSWER_CAP) }))
-    }
     const w = await read($, warm)
     if (!e.agentId && w.kind === 'on') {
       if (w.sent >= w.total) {
@@ -351,21 +264,6 @@ export const register: Register = on => {
     void enhance($, draft)
 
     return { text: 'promptdeck: enhancing with haiku; the result lands in the prompt box.' }
-  })
-
-  // The samples through the real model, the report in the home folder: the way to grade a prompt change.
-  on('command.run', { command: 'enhance-eval' }, async ($, e) => {
-    const ids = e.args.split(/\s+/).filter(id => id !== '')
-    const { report, summary } = await evaluate($, ids)
-    const home = (await $.env.get('USERPROFILE')) ?? (await $.env.get('HOME')) ?? '.'
-    const path = `${home.split('\\').join('/')}/promptdeck-enhance-eval.md`
-    try {
-      await $.fs.write(path, report)
-    } catch (error) {
-      return { text: `promptdeck: could not write ${path} (${error instanceof Error ? error.message : String(error)})\n\n${report}` }
-    }
-
-    return { text: `promptdeck: enhance eval written to ${path}\n${summary}` }
   })
 
   // A click on the animated label: it posts, this presses Enhance.
@@ -395,12 +293,12 @@ export const register: Register = on => {
       const { text } = await $.prompt.read()
       if (text === '') return
       const { isFilled } = await $.prompt.fill({ text: '', mode: 'replace' })
-      if (isFilled) await update($, clearedDraft, () => ({ text, why: 'clear' }))
+      if (isFilled) await update($, clearedDraft, () => ({ text }))
     }
     const onUndo = async () => {
       if (cleared.text === '') return
       const { isFilled } = await $.prompt.fill({ text: cleared.text, mode: 'replace' })
-      if (isFilled) await update($, clearedDraft, () => ({ text: '', why: 'clear' }))
+      if (isFilled) await update($, clearedDraft, () => ({ text: '' }))
     }
     const onUse = async () => {
       if (state.kind !== 'proposed') return
@@ -481,7 +379,7 @@ export const register: Register = on => {
             {cleared.text !== '' && (
               <Button key="undo" plain onPress={onUndo}>
                 <Text color={WARM} bold hover={{ scope: 'undo', underline: true }}>«</Text>
-                <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}>{cleared.why === 'enhance' ? ' Original' : ' Undo'}</Text>
+                <Text color={WHITE} bold hover={{ scope: 'undo', underline: true }}> Undo</Text>
               </Button>
             )}
             <Text> </Text>

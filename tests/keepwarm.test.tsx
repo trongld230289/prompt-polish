@@ -51,7 +51,7 @@ function world(on: On, percentUsed = 40) {
 const turnEnd = ($: Engine) =>
   $.turn.complete({ reason: 'answer', answer: 'ok', durationMs: 1, isAborted: false, turnId: 't1' } as never)
 
-test('Keepwarm asks how many pings, prefilled with 6, pings at once, then 50 minutes after each turn, and stops after the count', { timeoutMs: 30000 }, async ($, on) => {
+test('Keepwarm asks how many pings, prefilled with 6, pings at once, then 50 minutes after each turn, and stops after the count', async ($, on) => {
   const w = world(on)
   const ui = await $.ui.mount({ plugin: 'promptdeck', surface: 'terminal', ...BAND })
   await ui.press({ key: 'keepwarm' })

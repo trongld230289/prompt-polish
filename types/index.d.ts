@@ -11,17 +11,11 @@ export type Warm =
   | { kind: 'asking' }
   | { kind: 'on'; total: number; sent: number; nextAt: number }
 
-/**
- * The draft a press took out of the prompt box, for the button that puts it back: `why` `clear` (the Clear
- * button, "Undo") or `enhance` (the rewrite replaced it, "Original"); `text` `''` when there is nothing to put back.
- */
-export type Cleared = { text: string; why: 'clear' | 'enhance' }
-
-/** What the session just did, for Enhance: the person's last sent prompt and Claude's last answer, each cut. */
-export type Recent = { prompt: string; answer: string }
+/** The draft the Clear button took out of the prompt box, for Undo; `''` when there is nothing to put back. */
+export type Cleared = { text: string }
 
 declare module 'claude-code' {
   interface PluginState {
-    'promptdeck': { polish: Polish; warm: Warm; cleared: Cleared; recent: Recent }
+    'promptdeck': { polish: Polish; warm: Warm; cleared: Cleared }
   }
 }
