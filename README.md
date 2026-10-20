@@ -40,3 +40,7 @@ In the desktop app, where `/plugin` does not run: click + next to the prompt box
 **× Clear** empties the prompt box in one press (the keyboard way is `ctrl+l`); **Undo** then appears and puts that draft back. One step only: a second Clear replaces what Undo would restore.
 
 Renamed from prompt-polish: `claude plugin uninstall prompt-polish`, then install promptdeck as above.
+
+## Develop
+
+`claude plugin test .` runs the tests. `/enhance-eval [id ...]` runs the real model over the sample drafts in `hooks/samples.ts` the way Enhance does and writes `~/promptdeck-enhance-eval.md` to grade; a change to `hooks/prompt.ts` is not done until that report reads well.
