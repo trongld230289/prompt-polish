@@ -1,6 +1,6 @@
 {
   "name": "promptdeck",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "description": "Buttons above the prompt: Enhance rewrites your draft with haiku; Keepwarm pings this session so its prompt cache stays warm while you are away; Clear empties the box, Undo puts the draft back",
   "author": { "name": "trongld230289" },
   "types":"./types/index.d.ts"
