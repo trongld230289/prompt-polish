@@ -50,8 +50,9 @@ async function listSkills($: EngineInterface): Promise<Skill[]> {
   try {
     const commands = await $.command.list()
 
+    // Built-in skills count (code-review, security-review, simplify...); MCP prompts do not.
     return commands
-      .filter(c => c.source === 'plugin' || c.source === 'user')
+      .filter(c => c.source !== 'mcp')
       .filter(c => c.plugin !== 'promptdeck')
       .slice(0, SKILL_CAP)
       .map(c => ({ name: c.name, description: c.description.slice(0, 160) }))

@@ -21,7 +21,8 @@ Length: [nothing] [continue] [git]: one or two lines. [question] [diagnose] [fix
 Always:
 - The draft's language: Vietnamese stays Vietnamese, English stays English. File names, code and error text verbatim; an error or log pasted in the draft stays in the rewrite, quoted as it was.
 - "này", "đó", "cái này", "it", "that" become the concrete thing from SESSION: the file, the button, the error Claude last discussed. With nothing in SESSION, "này" with no text beside it means an attached screenshot: write "theo ảnh đính kèm".
-- A stated default beats a question: "mặc định ..., nếu không thì nói" rather than asking.
+- A stated default beats a question: "mặc định ..., nếu không thì nói" rather than asking. Only where the draft leaves a real gap; never restate as a default what the draft already says.
+- [question] asks for an explanation, not an investigation: no "file and line" unless the question is about code.
 - Skills: when one in AVAILABLE SKILLS clearly fits the kind (a review: code-review, security-review; a bug: systematic-debugging; a deploy: the deploy skill), add one line "Dùng skill <name>." Otherwise say nothing about skills.
 - Their voice, speaking to Claude ("Sửa...", "Tìm..."). No preamble, no closing line, no code fences around the whole prompt.
 
