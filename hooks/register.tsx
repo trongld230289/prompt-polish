@@ -15,6 +15,8 @@ const WARM_MAX = 48
 // vi-voice knows this mark and stays silent for the ping and its answer.
 const PING ='[keepwarm] Cache keep-alive ping while I am away. Do nothing, use no tools, reply with just: ok'
 const WARM_COUNT_KEY = 'warmCount'
+// How long the "✓ enhanced" line stays.
+const FILLED_MS = 5_000
 
 const CONTEXT_FILES = ['CLAUDE.md', 'README.md', 'package.json']
 const FILE_CAP = 4000
@@ -121,6 +123,10 @@ async function enhance($: EngineInterface, draft: string): Promise<void> {
     const rewritten = result.text.trim()
     const filled = await $.prompt.fill({ text: rewritten, mode: 'replace' })
     await setPolish($, filled.isFilled ? { kind: 'filled' } : { kind: 'proposed', text: rewritten })
+    // The "enhanced" line says its piece and goes, unless something else has taken its place by then.
+    if (filled.isFilled) {
+      $.clock.after(FILLED_MS, () => void update($, polish, p => (p.kind === 'filled' ? { kind: 'idle' } : p)))
+    }
   } catch (error) {
     const message = `Enhance failed: ${error instanceof Error ? error.message : String(error)}`
     await setPolish($, { kind: 'error', message })

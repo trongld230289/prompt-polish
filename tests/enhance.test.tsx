@@ -1,4 +1,4 @@
-import { expect, test } from 'claude-code/testing'
+import { expect, mock, test } from 'claude-code/testing'
 
 const BAND = {
   component: 'AbovePrompt',
@@ -16,6 +16,7 @@ const USAGE = { input_tokens: 1, output_tokens: 1, cache_read_input_tokens: 0, c
 
 
 test('Enhance rewrites the draft with haiku and fills the prompt box', async ($, on) => {
+  const clock = mock.clock(on, { now: 0 })
   let asked: { model: string; prompt: string } | undefined
   let filled: string | undefined
 
@@ -37,6 +38,9 @@ test('Enhance rewrites the draft with haiku and fills the prompt box', async ($,
   expect(asked?.prompt).toContain('thêm nút dark mode')
   expect(filled).toBe('Nhiệm vụ: thêm nút dark mode')
   expect(await ui.find({ type: 'Text', text: /enhanced/ })).toBeDefined()
+  // It says its piece and goes.
+  await clock.advance(5_500)
+  expect(await ui.find({ type: 'Text', text: /enhanced/ })).toBeUndefined()
   await ui.unmount()
 })
 
